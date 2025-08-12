@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Spin & Win</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #f0f0f0;
+    }
+    h1 {
+      margin-top: 20px;
+    }
+    canvas {
+      margin-top: 20px;
+    }
+    #spin {
+      padding: 12px 24px;
+      font-size: 18px;
+      font-weight: bold;
+      background: #28a745;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 8px;
+    }
+    #spin:disabled {
+      background: gray;
+      cursor: not-allowed;
+    }
+    #message {
+      font-size: 20px;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>🎡 Spin & Win 🎁</h1>
+<canvas id="wheelCanvas" width="500" height="500"></canvas><br/>
+<button id="spin">SPIN</button>
+
+<div id="message"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<audio id="spinSound" src="https://www.soundjay.com/button/sounds/button-16.mp3" preload="auto"></audio>
+
+<script>
+  const prizes = [
+    "Try Again", "Try Again", "Try Again", "Try Again", "Try Again",
+    "Try Again", "Try Again", "Try Again", "Try Again", "Try Again",
+    "5 Ksh"
+  ];
+
+  let startAngle = 0;
+  const arc = Math.PI / (prizes.length / 2);
+  let spinTimeout = null;
+  let spinAngleStart = 0;
+  let spinTime = 0;
+  let spinTimeTotal = 0;
+  const ctx = document.getElementById("wheelCanvas").getContext("2d");
+
+  // Calibration offset (degrees)
+  const calibrationOffset = 0;
+
+  function drawWheel() {
+    const outsideRadius = 200;
+    const textRadius = 160;
+    const insideRadius = 50;
+
+    ctx.clearRect(0,0,500,500);
+
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 2;
+    ctx.font = "bold 16px Arial";
+
+    for(let i = 0; i < prizes.length; i++) {
+      const angle = startAngle + i * arc;
+      ctx.fillStyle = i % 2 === 0 ? "#ffcc00" : "#ff6600";
+
+      ctx.beginPath();
+      ctx.arc(250, 250, outsideRadius, angle, angle + arc, false);
+      ctx.arc(250, 250, insideRadius, angle + arc, angle, true);
+      ctx.fill();
+
+      ctx.save();
+      ctx.fillStyle = "black";
+      ctx.translate(
+        250 + Math.cos(angle + arc / 2) * textRadius,
+        250 + Math.sin(angle + arc / 2) * textRadius
+      );
+      ctx.rotate(angle + arc / 2);
+      const text = prizes[i];
+      ctx.fillText(text, -ctx.measureText(text).width / 2, 0);
+      ctx.restore();
+    }
+
+    // Arrow
+    ctx.fillStyle = "black";
+    ctx.beginPath();
+    ctx.moveTo(250 - 4, 250 - (outsideRadius + 5));
+    ctx.lineTo(250 + 4, 250 - (outsideRadius + 5));
+    ctx.lineTo(250 + 4, 250 - (outsideRadius - 5));
+    ctx.lineTo(250 + 9, 250 - (outsideRadius - 5));
+    ctx.lineTo(250 + 0, 250 - (outsideRadius - 13));
+    ctx.lineTo(250 - 9, 250 - (outsideRadius - 5));
+    ctx.lineTo(250 - 4, 250 - (outsideRadius - 5));
+    ctx.lineTo(250 - 4, 250 - (outsideRadius + 5));
+    ctx.fill();
+  }
+
+  function rotateWheel() {
+    spinTime += 30;
+    if(spinTime >= spinTimeTotal) {
+      stopRotateWheel();
+      return;
+    }
+    const spinAngle = spinAngleStart - easeOut(spinTime, 0, spinAngleStart, spinTimeTotal);
+    startAngle += (spinAngle * Math.PI / 180);
+    drawWheel();
+    spinTimeout = setTimeout(rotateWheel, 30);
+  }
+
+  function stopRotateWheel() {
+    const degrees = startAngle * 180 / Math.PI + 90;
+    const arcd = arc * 180 / Math.PI;
+    let index = Math.floor((360 - (degrees % 360)) / arcd);
+    index = (index + prizes.length) % prizes.length;
+    const prize = prizes[index];
+    document.getElementById("message").textContent = prize === "Try Again" ? "" : `🎉 You won ${prize}! 🎉`;
+
+    if(prize !== "Try Again") {
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    }
+  }
+
+  function easeOut(t, b, c, d) {
+    const ts = (t/=d)*t;
+    const tc = ts*t;
+    return b+c*(tc + -3*ts + 3*t);
+  }
+
+  // One spin per user
+  if (localStorage.getItem("hasSpun")) {
+    document.getElementById("spin").disabled = true;
+    document.getElementById("spin").textContent = "You already spun!";
+  }
+
+  document.getElementById("spin").addEventListener("click", function() {
+    document.getElementById("spinSound").play();
+
+    // 100% Try Again for testing
+    let tryAgainIndices = prizes.map((p, i) => p === "Try Again" ? i : -1).filter(i => i >= 0);
+    let chosenIndex = tryAgainIndices[Math.floor(Math.random() * tryAgainIndices.length)];
+
+    const degreesPerSegment = 360 / prizes.length;
+    const stopAngle = 360 - ((chosenIndex * degreesPerSegment) + (degreesPerSegment / 2)) + calibrationOffset;
+    const spins = 5;
+    const finalAngle = (spins * 360) + stopAngle;
+
+    spinAngleStart = finalAngle;
+    spinTime = 0;
+    spinTimeTotal = 4000;
+    rotateWheel();
+
+    document.getElementById("spin").disabled = true;
+    localStorage.setItem("hasSpun", "true");
+  });
+
+  drawWheel();
+</script>
+
+</body>
+</html>
